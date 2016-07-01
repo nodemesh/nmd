@@ -1,0 +1,6 @@
+[package]
+name = "nmd"
+version = "0.1.0"
+authors = ["Jason Sommer <j@jsdir.net>"]
+
+[dependencies]
