@@ -1,0 +1,2 @@
+# nmd
+The nodemesh daemon
