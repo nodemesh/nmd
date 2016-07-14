@@ -13,3 +13,6 @@ version = "*"
 
 [dependencies.websocket]
 version = "*"
+
+[dependencies.libnm]
+path = "../libnm"

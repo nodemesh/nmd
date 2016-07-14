@@ -1,9 +1,11 @@
 extern crate zmq;
+extern crate libnm;
 
 use protobuf::*;
+use self::libnm::protocol::messages;
 
 use context;
-use messages;
+// use messages;
 // use renderers;
 
 pub struct Server<'a> {
