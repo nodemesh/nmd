@@ -5,8 +5,8 @@ use protobuf::*;
 use self::libnm::protocol::messages;
 
 use context;
-// use messages;
-// use renderers;
+
+const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
 pub struct Server<'a> {
     addr: &'a str,
@@ -16,7 +16,6 @@ pub struct Server<'a> {
 impl<'a> Server<'a> {
 
     pub fn new(ctx: &mut context::Context) -> Server {
-        // TODO: the address can be any endpoint compatible with zeromq
         Server{
             ctx: ctx,
             addr: option_env!("NMD_ADDR").unwrap_or("*:5555"),
@@ -34,9 +33,7 @@ impl<'a> Server<'a> {
 
         loop {
             responder.recv(&mut msg, 0).unwrap();
-
             let requests = parse_from_bytes::<messages::Requests>(&msg).unwrap();
-
             let mut responses = Vec::new();
 
             for (i, request) in requests.get_requests().iter().enumerate() {
@@ -50,7 +47,7 @@ impl<'a> Server<'a> {
 
             let mut res_message = messages::Responses::new();
             res_message.set_responses(RepeatedField::from_vec(responses));
-            let bytes = res_message.write_length_delimited_to_bytes().unwrap();
+            let bytes = res_message.write_to_bytes().unwrap();
             responder.send(&bytes, 0).unwrap();
         }
     }
@@ -68,15 +65,13 @@ impl<'a> Server<'a> {
     }
 
     fn get_version() -> Option<messages::Response> {
-        // const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
-        let mut msg = messages::GetVersionResponse::new();
-        // TODO: parse the package version
-        msg.set_major_version(12);
+        let mut res = messages::GetVersionResponse::new();
+        res.set_version(VERSION.unwrap_or("unknown").to_string());
 
-        let mut res = messages::Response::new();
-        res.set_r_type(messages::Response_ResponseType::GET_VERSION);
-        res.set_get_version_response(msg);
-        return Some(res);
+        let mut msg = messages::Response::new();
+        msg.set_r_type(messages::Response_ResponseType::GET_VERSION);
+        msg.set_get_version_response(res);
+        return Some(msg);
     }
 
     // fn create_renderer(&mut self, request: &messages::CreateRendererRequest) -> Option<messages::Response> {
