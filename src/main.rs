@@ -1,7 +1,8 @@
 extern crate protobuf;
 
-pub mod context;
-pub mod server;
+mod context;
+mod server;
+mod renderers;
 
 fn main() {
     let mut ctx = context::Context::new();

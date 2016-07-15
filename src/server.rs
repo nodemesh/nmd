@@ -5,17 +5,18 @@ use protobuf::*;
 use self::libnm::protocol::messages;
 
 use context;
+use renderers;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
 pub struct Server<'a> {
     addr: &'a str,
-    ctx: &'a context::Context
+    ctx: &'a mut context::Context
 }
 
 impl<'a> Server<'a> {
 
-    pub fn new(ctx: &mut context::Context) -> Server {
+    pub fn new(ctx: &'a mut context::Context) -> Server<'a> {
         Server{
             ctx: ctx,
             addr: option_env!("NMD_ADDR").unwrap_or("*:5555"),
@@ -53,13 +54,16 @@ impl<'a> Server<'a> {
     }
 
     fn get_response(&mut self, request: &messages::Request) -> Option<messages::Response> {
-        match request.get_r_type() {
+        match request.get_request_type() {
             messages::Request_RequestType::GET_VERSION => {
                 Server::get_version()
             },
-            // messages::Request_RequestType::CREATE_RENDERER => {
-            //     self.create_renderer(request.get_create_renderer_request())
-            // },
+            messages::Request_RequestType::CREATE_RENDERER => {
+                self.create_renderer(request.get_create_renderer_request())
+            },
+            messages::Request_RequestType::DELETE_RENDERER => {
+                self.delete_renderer(request.get_delete_renderer_request())
+            },
             _ => None
         }
     }
@@ -69,40 +73,39 @@ impl<'a> Server<'a> {
         res.set_version(VERSION.unwrap_or("unknown").to_string());
 
         let mut msg = messages::Response::new();
-        msg.set_r_type(messages::Response_ResponseType::GET_VERSION);
+        msg.set_response_type(messages::Response_ResponseType::GET_VERSION);
         msg.set_get_version_response(res);
         return Some(msg);
     }
 
-    // fn create_renderer(&mut self, request: &messages::CreateRendererRequest) -> Option<messages::Response> {
-    //     let renderer = match request.get_r_type() {
-    //         messages::CreateRendererRequest_RendererType::WEBGL => renderers::webgl::WebGLRenderer::new(),
-    //         messages::CreateRendererRequest_RendererType::OTHER => renderers::webgl::WebGLRenderer::new(),
-    //     };
+    fn create_renderer(
+        &mut self, request: &messages::CreateRendererRequest
+    ) -> Option<messages::Response> {
+        let renderer: Box<renderers::Renderer> = match request.get_renderer_type() {
+            messages::CreateRendererRequest_RendererType::DISPLAY => {
+                Box::new(renderers::display::DisplayRenderer::new())
+            },
+            messages::CreateRendererRequest_RendererType::WEBGL => {
+                Box::new(renderers::webgl::WebGLRenderer::new())
+            }
+        };
 
-    //     renderer.set_options(request.get_options())
+        // TODO: set renderer info
+        let renderer_id = self.ctx.add_renderer(renderer);
+        let mut msg = messages::ItemCreatedResponse::new();
+        msg.set_item_id(renderer_id);
 
-    //     // TODO: add id to the renderer
-    //     let id = ctx.add_renderer(renderer);
-    //     let mut msg = messages::ItemCreatedResponse{};
-    //     msg.set_item_id
-    //     let mut res = messages::Response::new();
-    //     res.set_r_type(messages::Response_ResponseType::ITEM_CREATED);
-    //     Option(res)
-    // }
+        let mut res = messages::Response::new();
+        res.set_response_type(messages::Response_ResponseType::ITEM_CREATED);
+        res.set_item_created_response(msg);
+        Some(res)
+    }
 
-    // fn delete_renderer(&mut self, request: &messages::DeleteRendererRequest) -> Option<messages::Response> {
-    //     let id = request.get_renderer_id();
-    //     self.ctx.delete_renderer_with_id(id);
-    //     None
-    // }
-
-    // fn create_camera(&mut self, request: &messages::CreateCameraRequest) -> Option<messages::Response> {
-    //     let renderer_id = request.get_renderer_id();
-    //     let renderer = self.ctx.get_renderer(renderer_id);
-    //     let camera = request.get_camera();
-    //     let values = camera.get_matrix_values();
-
-    //     renderer.add_camera()
-    // }
+    fn delete_renderer(
+        &mut self, request: &messages::DeleteRendererRequest
+    ) -> Option<messages::Response> {
+        let renderer_id = request.get_renderer_id();
+        self.ctx.delete_renderer(renderer_id);
+        None
+    }
 }
