@@ -11,8 +11,11 @@ git = "https://github.com/erickt/rust-zmq.git"
 [dependencies.protobuf]
 version = "*"
 
-[dependencies.websocket]
+[dependencies.ws]
 version = "*"
 
 [dependencies.libnm]
 path = "../libnm"
+
+[dependencies.nalgebra]
+version = "*"
