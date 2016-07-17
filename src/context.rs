@@ -4,13 +4,13 @@ use renderers;
 
 pub type Id = i64;
 
-pub struct Context<'a> {
-    renderer_contexts: HashMap<Id, renderers::RendererContext<'a>>,
+pub struct Context {
+    renderer_contexts: HashMap<Id, renderers::RendererContext>,
     id: Id
 }
 
-impl<'a> Context<'a> {
-    pub fn new() -> Context<'a> {
+impl Context {
+    pub fn new() -> Context {
         Context{
             id: 0,
             renderer_contexts: HashMap::new()
@@ -23,7 +23,7 @@ impl<'a> Context<'a> {
     }
 
     pub fn add_renderer(
-        &mut self, rctx: renderers::RendererContext<'a>
+        &mut self, rctx: renderers::RendererContext
     ) -> Id {
         let rid = self.get_id();
         self.renderer_contexts.insert(rid, rctx);
@@ -34,8 +34,8 @@ impl<'a> Context<'a> {
         self.renderer_contexts.remove(&renderer_id);
     }
 
-    pub fn get_renderer_context_with_id(&self, renderer_id: Id) -> &renderers::RendererContext<'a> {
+    pub fn get_renderer_context_with_id(&mut self, renderer_id: Id) -> &mut renderers::RendererContext {
         // TODO: handle the error case here.
-        self.renderer_contexts.get(&renderer_id).unwrap()
+        self.renderer_contexts.get_mut(&renderer_id).unwrap()
     }
 }

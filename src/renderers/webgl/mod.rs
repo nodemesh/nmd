@@ -3,8 +3,8 @@ extern crate ws;
 
 use std::collections::HashMap;
 use self::na::Matrix4;
-use self::ws::{connect};
-use context;
+// use self::ws::{connect};
+// use context;
 use renderers;
 
 // struct Payload {
@@ -12,14 +12,14 @@ use renderers;
 //     viewer_transform: Matrix4<f64>
 // }
 
-pub struct WebGLRenderer<'a> {
-    renderer_context: Option<&'a renderers::RendererContext<'a>>,
+pub struct WebGLRenderer {
+    renderer_context: Option<Box<&renderers::RendererContext>>,
     // so: chat-using-web-socket
     // broadcast_rx: mpsc::channel::<Message>
 }
 
-impl<'a> WebGLRenderer<'a> {
-    pub fn new() -> WebGLRenderer<'a> {
+impl WebGLRenderer {
+    pub fn new() -> WebGLRenderer {
         WebGLRenderer{
             renderer_context: None
         }
@@ -30,27 +30,18 @@ impl<'a> WebGLRenderer<'a> {
     //     self.viewer;
     // }
 
-    fn terminate() {
-        // this is called before removing the backend
-        // TODO: join the ws thread
-    }
-
-    // different functions that are called when an action happens
-    // create camera
-    // remove camera
-
-    fn send_payload() {
-        // self.renderer_context.cameras;
-        // self.renderer_context.matrix_transform;
-    }
+    // fn send_payload() {
+    //     self.renderer_context.cameras;
+    //     self.renderer_context.matrix_transform;
+    // }
 }
 
-impl<'a> renderers::Renderer<'a> for WebGLRenderer<'a> {
+impl renderers::Renderer for WebGLRenderer {
 
     fn init(
         &mut self,
-        options: HashMap<&'a str, &'a str>,
-        renderer_context: &'a renderers::RendererContext
+        options: HashMap<String, String>,
+        renderer_context: Box<&renderers::RendererContext>
     ) {
         self.renderer_context = Some(renderer_context);
         /*connect(self.options.addr, |out| {
@@ -70,7 +61,7 @@ impl<'a> renderers::Renderer<'a> for WebGLRenderer<'a> {
         // transform
     }
 
-    fn add_camera(&mut self, camera: renderers::Camera) {
+    fn add_camera(&mut self, camera: &renderers::Camera) {
         // name, transform, projection
     }
 
