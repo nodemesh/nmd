@@ -11,7 +11,7 @@ pub trait Renderer {
     fn init(
         &mut self,
         options: HashMap<String, String>,
-        renderer_context: Box<&RendererContext>
+        // renderer_context: &'a RendererContext<'a>
     );
     fn set_viewer_transform(&mut self, transform: Matrix4<f32>);
     fn add_camera(&mut self, camera: &Camera);

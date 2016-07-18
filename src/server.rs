@@ -155,7 +155,7 @@ impl<'a> Server<'a> {
         }
 
         // Set up the renderer context.
-        let renderer_context = renderers::RendererContext{
+        let mut renderer_context = renderers::RendererContext{
             cameras: cameras,
             viewer_transform: unserialize_matrix4(
                 request.get_viewer_transform()
@@ -169,7 +169,7 @@ impl<'a> Server<'a> {
             renderer_options.insert(option.get_key().to_string(), option.get_value().to_string());
         }
 
-        renderer_context.renderer.init(renderer_options, Box::new(&renderer_context));
+        renderer_context.renderer.init(renderer_options/*, &renderer_context*/);
 
         // Add the renderer to context.
         let renderer_id = self.ctx.add_renderer(renderer_context);

@@ -12,14 +12,14 @@ use renderers;
 //     viewer_transform: Matrix4<f64>
 // }
 
-pub struct WebGLRenderer {
-    renderer_context: Option<Box<&renderers::RendererContext>>,
+pub struct WebGLRenderer<'a> {
+    renderer_context: Option<&'a renderers::RendererContext>,
     // so: chat-using-web-socket
     // broadcast_rx: mpsc::channel::<Message>
 }
 
-impl WebGLRenderer {
-    pub fn new() -> WebGLRenderer {
+impl<'a> WebGLRenderer<'a> {
+    pub fn new() -> WebGLRenderer<'a> {
         WebGLRenderer{
             renderer_context: None
         }
@@ -36,14 +36,14 @@ impl WebGLRenderer {
     // }
 }
 
-impl renderers::Renderer for WebGLRenderer {
+impl<'a> renderers::Renderer for WebGLRenderer<'a> {
 
     fn init(
         &mut self,
         options: HashMap<String, String>,
-        renderer_context: Box<&renderers::RendererContext>
+        // renderer_context: &'a renderers::RendererContext<'a>
     ) {
-        self.renderer_context = Some(renderer_context);
+        // self.renderer_context = Some(renderer_context);
         /*connect(self.options.addr, |out| {
             self.ctx;
             // send the viewer location
