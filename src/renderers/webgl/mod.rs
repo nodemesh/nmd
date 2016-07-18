@@ -3,6 +3,8 @@ extern crate ws;
 
 use std::collections::HashMap;
 use self::na::Matrix4;
+use std::rc::Rc;
+
 // use self::ws::{connect};
 // use context;
 use renderers;
@@ -12,14 +14,14 @@ use renderers;
 //     viewer_transform: Matrix4<f64>
 // }
 
-pub struct WebGLRenderer<'a> {
-    renderer_context: Option<&'a renderers::RendererContext>,
+pub struct WebGLRenderer {
+    renderer_context: Option<Rc<renderers::RendererContext>>,
     // so: chat-using-web-socket
     // broadcast_rx: mpsc::channel::<Message>
 }
 
-impl<'a> WebGLRenderer<'a> {
-    pub fn new() -> WebGLRenderer<'a> {
+impl WebGLRenderer {
+    pub fn new() -> WebGLRenderer {
         WebGLRenderer{
             renderer_context: None
         }
@@ -36,13 +38,14 @@ impl<'a> WebGLRenderer<'a> {
     // }
 }
 
-impl<'a> renderers::Renderer for WebGLRenderer<'a> {
+impl renderers::Renderer for WebGLRenderer {
 
     fn init(
         &mut self,
         options: HashMap<String, String>,
-        // renderer_context: &'a renderers::RendererContext<'a>
+        renderer_context: Rc<renderers::RendererContext>
     ) {
+        self.renderer_context = Some(renderer_context);
         // self.renderer_context = Some(renderer_context);
         /*connect(self.options.addr, |out| {
             self.ctx;

@@ -6,6 +6,7 @@ use protobuf::*;
 use self::libnm::protocol::messages;
 use self::na::*;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use context;
 use renderers;
@@ -169,7 +170,7 @@ impl<'a> Server<'a> {
             renderer_options.insert(option.get_key().to_string(), option.get_value().to_string());
         }
 
-        renderer_context.renderer.init(renderer_options/*, &renderer_context*/);
+        renderer_context.renderer.init(renderer_options, Rc::new(&renderer_context));
 
         // Add the renderer to context.
         let renderer_id = self.ctx.add_renderer(renderer_context);

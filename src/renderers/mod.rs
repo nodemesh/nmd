@@ -6,12 +6,13 @@ pub mod webgl;
 
 use self::na::*;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 pub trait Renderer {
     fn init(
         &mut self,
         options: HashMap<String, String>,
-        // renderer_context: &'a RendererContext<'a>
+        renderer_context: Rc<RendererContext>
     );
     fn set_viewer_transform(&mut self, transform: Matrix4<f32>);
     fn add_camera(&mut self, camera: &Camera);
