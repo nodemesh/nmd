@@ -36,17 +36,22 @@ fn unserialize_matrix4(v: &[f32]) -> Matrix4<f32> {
     )
 }
 
+pub struct Graphs;
+
 pub struct Server<'a> {
     addr: &'a str,
-    ctx: &'a mut context::Context
+    ctx: context::Context<'a>,
+    pub graphs: Graphs
 }
 
 impl<'a> Server<'a> {
 
-    pub fn new(ctx: &'a mut context::Context) -> Server<'a> {
+    pub fn new() -> Server<'a> {
         Server{
-            ctx: ctx,
             addr: option_env!("NMD_ADDR").unwrap_or("*:5555"),
+            ctx: context::Context::new(),
+            graphs: Graphs{
+            }
         }
     }
 
@@ -65,12 +70,12 @@ impl<'a> Server<'a> {
             let mut responses = Vec::new();
 
             for (i, request) in requests.get_requests().iter().enumerate() {
-                let response = self.get_response(request);
+                // let response = self.get_response(request);
 
-                if let Some(mut res) = response {
-                    res.set_index(i as i64);
-                    responses.push(res);
-                }
+                // if let Some(mut res) = response {
+                //     res.set_index(i as i64);
+                //     responses.push(res);
+                // }
             }
 
             let mut res_message = messages::Responses::new();
@@ -81,7 +86,7 @@ impl<'a> Server<'a> {
     }
 
     fn get_response(
-        &mut self, request: &messages::Request
+        &'a mut self, request: &messages::Request
     ) -> Option<messages::Response> {
         match request.get_request_type() {
             messages::Request_RequestType::GET_VERSION => {
@@ -129,22 +134,8 @@ impl<'a> Server<'a> {
     }
 
     fn create_renderer(
-        &mut self, request: &messages::CreateRendererRequest
+        &'a mut self, request: &messages::CreateRendererRequest
     ) -> Option<messages::Response> {
-        let renderer: Box<renderers::Renderer> = match request.get_renderer_type() {
-            messages::CreateRendererRequest_RendererType::DISPLAY => {
-                unimplemented!()
-                // Box::new(renderers::display::DisplayRenderer::new(
-                //     self.ctx,
-                //     renderer_options
-                // ))
-            },
-            messages::CreateRendererRequest_RendererType::WEBGL => {
-                Box::new(renderers::webgl::WebGLRenderer::new())
-            }
-        };
-
-        // Set cameras.
         let mut cameras = HashMap::new();
         for camera in request.get_cameras() {
             let camera_name = camera.get_name().to_string();
@@ -155,13 +146,11 @@ impl<'a> Server<'a> {
             });
         }
 
-        // Set up the renderer context.
-        let mut renderer_context = renderers::RendererContext{
+        let viewer = renderers::Viewer{
             cameras: cameras,
-            viewer_transform: unserialize_matrix4(
+            transform: unserialize_matrix4(
                 request.get_viewer_transform()
             ),
-            renderer: renderer
         };
 
         // Initialize the renderer with options.
@@ -170,10 +159,33 @@ impl<'a> Server<'a> {
             renderer_options.insert(option.get_key().to_string(), option.get_value().to_string());
         }
 
-        renderer_context.renderer.init(renderer_options, Rc::new(&renderer_context));
+        let renderer: Box<renderers::Renderer + 'a> = Box::new(
+            renderers::webgl::WebGLRenderer::new(
+                // &self.graphs,
+                viewer, renderer_options
+            )
+        );
+
+
+        // renderer.init(renderer_options);
+
+        // let renderer: Box<renderers::Renderer> = match request.get_renderer_type() {
+        //     messages::CreateRendererRequest_RendererType::DISPLAY => {
+        //         unimplemented!()
+        //         // Box::new(renderers::display::DisplayRenderer::new(
+        //         //     self.ctx,
+        //         //     renderer_options
+        //         // ))
+        //     },
+        //     messages::CreateRendererRequest_RendererType::WEBGL => {
+        //         Box::new(renderers::webgl::WebGLRenderer{
+        //             graphs: &self.ctx.graphs
+        //         })
+        //     }
+        // };
 
         // Add the renderer to context.
-        let renderer_id = self.ctx.add_renderer(renderer_context);
+        let renderer_id = self.ctx.add_renderer(renderer);
         let mut msg = messages::ItemCreatedResponse::new();
         msg.set_item_id(renderer_id);
 
@@ -187,7 +199,7 @@ impl<'a> Server<'a> {
         &mut self, request: &messages::DeleteRendererRequest
     ) -> Option<messages::Response> {
         let renderer_id = request.get_renderer_id();
-        self.ctx.delete_renderer_context_with_id(renderer_id);
+        self.ctx.delete_renderer_with_id(renderer_id);
         None
     }
 
@@ -195,10 +207,10 @@ impl<'a> Server<'a> {
         &mut self, request: &messages::UpdateViewerTransformRequest
     ) -> Option<messages::Response> {
         let renderer_id = request.get_renderer_id();
-        let rctx = self.ctx.get_renderer_context_with_id(renderer_id);
-        rctx.set_viewer_transform(
-            unserialize_matrix4(request.get_transform())
-        );
+        let renderer = self.ctx.get_renderer_with_id(renderer_id);
+        let transform = unserialize_matrix4(request.get_transform());
+        renderer.viewer().transform = transform;
+        renderer.set_viewer_transform(transform);
         None
     }
 
@@ -207,13 +219,15 @@ impl<'a> Server<'a> {
     ) -> Option<messages::Response> {
         let renderer_id = request.get_renderer_id();
         let req_camera = request.get_camera();
-        let rctx = self.ctx.get_renderer_context_with_id(renderer_id);
+        let renderer = self.ctx.get_renderer_with_id(renderer_id);
+        let camera_name = req_camera.get_name();
         let camera = renderers::Camera{
-            name: req_camera.get_name().to_string(),
+            name: camera_name.to_string(),
             transform: unserialize_matrix4(req_camera.get_transform()),
             projection: unserialize_matrix4(req_camera.get_projection())
         };
-        rctx.add_camera(camera);
+        renderer.viewer().cameras.insert(camera_name.to_string(), camera);
+        // TODO: renderer.add_camera(camera);
         None
     }
 
@@ -221,8 +235,10 @@ impl<'a> Server<'a> {
         &mut self, request: &messages::DeleteCameraRequest
     ) -> Option<messages::Response> {
         let renderer_id = request.get_renderer_id();
-        let rctx = self.ctx.get_renderer_context_with_id(renderer_id);
-        rctx.delete_camera_with_name(request.get_camera_name());
+        let renderer = self.ctx.get_renderer_with_id(renderer_id);
+        let camera_name = request.get_camera_name();
+        renderer.viewer().cameras.remove(camera_name);
+        renderer.delete_camera_with_name(request.get_camera_name());
         None
     }
 
@@ -230,10 +246,13 @@ impl<'a> Server<'a> {
         &mut self, request: &messages::UpdateCameraTransformRequest
     ) -> Option<messages::Response> {
         let renderer_id = request.get_renderer_id();
-        let mut rctx = self.ctx.get_renderer_context_with_id(renderer_id);
-        rctx.set_camera_transform(
-            request.get_camera_name(),
-            unserialize_matrix4(request.get_transform())
+        let mut renderer = self.ctx.get_renderer_with_id(renderer_id);
+        let camera_name = request.get_camera_name();
+        let transform = unserialize_matrix4(request.get_transform());
+        renderer.viewer().cameras.get_mut(camera_name).unwrap().transform = transform;
+        renderer.set_camera_transform(
+            camera_name,
+            transform
         );
         None
     }
@@ -242,10 +261,13 @@ impl<'a> Server<'a> {
         &mut self, request: &messages::UpdateCameraProjectionRequest
     ) -> Option<messages::Response> {
         let renderer_id = request.get_renderer_id();
-        let rctx = self.ctx.get_renderer_context_with_id(renderer_id);
-        rctx.set_camera_projection(
-            request.get_camera_name(),
-            unserialize_matrix4(request.get_transform())
+        let renderer = self.ctx.get_renderer_with_id(renderer_id);
+        let camera_name = request.get_camera_name();
+        let projection = unserialize_matrix4(request.get_transform());
+        renderer.viewer().cameras.get_mut(camera_name).unwrap().projection = projection;
+        renderer.set_camera_projection(
+            camera_name,
+            projection
         );
         None
     }

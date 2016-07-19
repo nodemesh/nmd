@@ -4,6 +4,8 @@ extern crate ws;
 use std::collections::HashMap;
 use self::na::Matrix4;
 use std::rc::Rc;
+use context;
+use server;
 
 // use self::ws::{connect};
 // use context;
@@ -14,51 +16,35 @@ use renderers;
 //     viewer_transform: Matrix4<f64>
 // }
 
-pub struct WebGLRenderer {
-    renderer_context: Option<Rc<renderers::RendererContext>>,
+pub struct WebGLRenderer<'a> {
+    graphs: &'a server::Graphs,
+    viewer: renderers::Viewer,
+    options: HashMap<String, String>
+    // renderer_context: Option<Rc<renderers::RendererContext>>,
     // so: chat-using-web-socket
     // broadcast_rx: mpsc::channel::<Message>
 }
 
-impl WebGLRenderer {
-    pub fn new() -> WebGLRenderer {
+impl<'a> WebGLRenderer<'a> {
+
+    pub fn new(
+        // graphs: &'a server::Graphs,
+        viewer: renderers::Viewer,
+        options: HashMap<String, String>
+    ) -> WebGLRenderer<'a> {
         WebGLRenderer{
-            renderer_context: None
+            // graphs: graphs,
+            viewer: viewer,
+            options: options
         }
     }
-
-    // fn serialize_all() {
-    //     self.cameras;
-    //     self.viewer;
-    // }
-
-    // fn send_payload() {
-    //     self.renderer_context.cameras;
-    //     self.renderer_context.matrix_transform;
-    // }
 }
 
-impl renderers::Renderer for WebGLRenderer {
+impl<'a> renderers::Renderer for WebGLRenderer<'a> {
 
-    fn init(
-        &mut self,
-        options: HashMap<String, String>,
-        renderer_context: Rc<renderers::RendererContext>
-    ) {
-        self.renderer_context = Some(renderer_context);
-        // self.renderer_context = Some(renderer_context);
-        /*connect(self.options.addr, |out| {
-            self.ctx;
-            // send the viewer location
-            // send location, projection for each camera
-            // owned by this renderer
-
-            // send the entire graph for now, later we will need to cull objects by their exclusion from the union of the camera frustums
-        })*/
+    fn viewer(&mut self) -> &mut renderers::Viewer {
+        &mut self.viewer
     }
-
-    // The following methods are going to broadcast a message
-    // to all connected client for now.
 
     fn set_viewer_transform(&mut self, transform: Matrix4<f32>) {
         // transform

@@ -1,11 +1,10 @@
 extern crate protobuf;
 
-mod context;
 mod server;
 mod renderers;
+mod context;
 
 fn main() {
-    let mut ctx = context::Context::new();
-    let mut server = server::Server::new(&mut ctx);
+    let mut server = server::Server::new();
     server.listen();
 }
