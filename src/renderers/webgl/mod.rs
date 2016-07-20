@@ -3,16 +3,13 @@ extern crate ws;
 
 use std::collections::HashMap;
 use self::na::Matrix4;
-use std::rc::Rc;
-use std::cell::RefCell;
 use server;
 use std::thread;
 use std::thread::{JoinHandle};
 use renderers;
 use std::sync::{Arc, RwLock};
-use self::ws::{listen, Sender as WSSender, Handler, Message, CloseCode, Handshake};
+use self::ws::{WebSocket, Sender as WSSender, Handler, Message};
 use std::sync::mpsc;
-// use serde_json::builder::{ArrayBuilder, ObjectBuilder};
 
 #[derive(Clone)]
 enum WSMessage {
@@ -40,53 +37,59 @@ impl Handler for WebsocketServer {
         let graphs = self.graphs.as_ref().read().unwrap();
         graphs.n;
         let data = msg.into_data();
-        self.out.send("foo")
+        self.out.send("response")
     }
 }
 
 pub struct WebGLRenderer {
     viewer: renderers::Viewer,
     options: HashMap<String, String>,
-    handle: Option<JoinHandle<()>>
-    // rx: Receiver<WSMessage>
+    join_handle: Option<JoinHandle<()>>,
+    tx: mpsc::Sender<Message>
 }
 
 impl WebGLRenderer {
-
-    // fn get_payload_message(&self) -> Message {
-        // MessageTypes::INITIAL_PAYLOAD;
-        // self.viewer;
-        // let value = ObjectBuilder::new()
-        //     .insert("cameras", ArrayBuilder::new()
-        //             .)
-        //     pub cameras: HashMap<String, Camera>,
-        // pub transform: Matrix4<f32>,
-    // }
 
     pub fn new(
         graphs: Arc<RwLock<server::Graphs>>,
         viewer: renderers::Viewer,
         options: HashMap<String, String>
     ) -> WebGLRenderer {
+        let (tx, rx) = mpsc::channel();
+
         let mut renderer = WebGLRenderer{
             viewer: viewer,
             options: options,
-            handle: None,
+            join_handle: None,
+            tx: tx
         };
 
         let addr = "127.0.0.1:12345";
-        renderer.handle = Some(thread::spawn(move || {
-            listen(addr, |out| {
-                // add a listener tx to a shared list and rx to the server
+        renderer.join_handle = Some(thread::spawn(move || {
+            let ws = WebSocket::new(|out| {
                 WebsocketServer{
                     out: out,
                     graphs: graphs.clone()
-                    //rx: foo.clone()
                 }
             }).unwrap();
+            let broadcaster = ws.broadcaster();
+
+            thread::spawn(move || {
+                let msg = rx.recv().unwrap();
+                let _ = broadcaster.send(msg);
+            });
+
+            ws.listen(addr).unwrap();
         }));
 
         renderer
+    }
+}
+
+impl Drop for WebGLRenderer {
+
+    fn drop(&mut self) {
+        self.join_handle.take().unwrap().join();
     }
 }
 
@@ -97,6 +100,8 @@ impl renderers::Renderer for WebGLRenderer {
     }
 
     fn set_viewer_transform(&mut self, transform: Matrix4<f32>) {
+        let msg = ws::Message::Text("hello world".to_string());
+        let _ = self.tx.send(msg);
         // self.bus.unwrap().broadcast(WSMessage::INITIAL_PAYLOAD)
         // self.rx.send(Message{
         //     type: SET_VIEWER_TRANSFORM,
