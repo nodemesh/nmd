@@ -4,6 +4,7 @@ extern crate ws;
 use std::collections::HashMap;
 use self::na::Matrix4;
 use std::rc::Rc;
+use std::cell::RefCell;
 use context;
 use server;
 
@@ -16,31 +17,30 @@ use renderers;
 //     viewer_transform: Matrix4<f64>
 // }
 
-pub struct WebGLRenderer<'a> {
-    graphs: &'a server::Graphs,
+pub struct WebGLRenderer {
+    graphs: Rc<RefCell<server::Graphs>>,
     viewer: renderers::Viewer,
     options: HashMap<String, String>
-    // renderer_context: Option<Rc<renderers::RendererContext>>,
     // so: chat-using-web-socket
     // broadcast_rx: mpsc::channel::<Message>
 }
 
-impl<'a> WebGLRenderer<'a> {
+impl WebGLRenderer {
 
     pub fn new(
-        // graphs: &'a server::Graphs,
+        graphs: Rc<RefCell<server::Graphs>>,
         viewer: renderers::Viewer,
         options: HashMap<String, String>
-    ) -> WebGLRenderer<'a> {
+    ) -> WebGLRenderer {
         WebGLRenderer{
-            // graphs: graphs,
+            graphs: graphs,
             viewer: viewer,
             options: options
         }
     }
 }
 
-impl<'a> renderers::Renderer for WebGLRenderer<'a> {
+impl renderers::Renderer for WebGLRenderer {
 
     fn viewer(&mut self) -> &mut renderers::Viewer {
         &mut self.viewer

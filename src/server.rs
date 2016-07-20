@@ -7,6 +7,7 @@ use self::libnm::protocol::messages;
 use self::na::*;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::cell::RefCell;
 
 use context;
 use renderers;
@@ -41,7 +42,7 @@ pub struct Graphs;
 pub struct Server<'a> {
     addr: &'a str,
     ctx: context::Context<'a>,
-    pub graphs: Graphs
+    graphs: Rc<RefCell<Graphs>>
 }
 
 impl<'a> Server<'a> {
@@ -50,8 +51,7 @@ impl<'a> Server<'a> {
         Server{
             addr: option_env!("NMD_ADDR").unwrap_or("*:5555"),
             ctx: context::Context::new(),
-            graphs: Graphs{
-            }
+            graphs: Rc::new(RefCell::new(Graphs{}))
         }
     }
 
@@ -70,12 +70,12 @@ impl<'a> Server<'a> {
             let mut responses = Vec::new();
 
             for (i, request) in requests.get_requests().iter().enumerate() {
-                // let response = self.get_response(request);
+                let response = self.get_response(request);
 
-                // if let Some(mut res) = response {
-                //     res.set_index(i as i64);
-                //     responses.push(res);
-                // }
+                if let Some(mut res) = response {
+                    res.set_index(i as i64);
+                    responses.push(res);
+                }
             }
 
             let mut res_message = messages::Responses::new();
@@ -86,7 +86,7 @@ impl<'a> Server<'a> {
     }
 
     fn get_response(
-        &'a mut self, request: &messages::Request
+        &mut self, request: &messages::Request
     ) -> Option<messages::Response> {
         match request.get_request_type() {
             messages::Request_RequestType::GET_VERSION => {
@@ -134,7 +134,7 @@ impl<'a> Server<'a> {
     }
 
     fn create_renderer(
-        &'a mut self, request: &messages::CreateRendererRequest
+        &mut self, request: &messages::CreateRendererRequest
     ) -> Option<messages::Response> {
         let mut cameras = HashMap::new();
         for camera in request.get_cameras() {
@@ -161,8 +161,9 @@ impl<'a> Server<'a> {
 
         let renderer: Box<renderers::Renderer + 'a> = Box::new(
             renderers::webgl::WebGLRenderer::new(
-                // &self.graphs,
-                viewer, renderer_options
+                self.graphs.clone(),
+                viewer,
+                renderer_options
             )
         );
 
