@@ -6,16 +6,13 @@ use protobuf::*;
 use self::libnm::protocol::messages;
 use self::na::*;
 use std::collections::HashMap;
-use std::rc::Rc;
-use std::cell::RefCell;
+use std::sync::{Arc, RwLock};
 
 use context;
 use renderers;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
-// TODO: Matrix4 might already have a constructor method that
-// initializes the matrix values from a vector
 fn unserialize_matrix4(v: &[f32]) -> Matrix4<f32> {
     Matrix4::new(
         v[0],
@@ -37,12 +34,14 @@ fn unserialize_matrix4(v: &[f32]) -> Matrix4<f32> {
     )
 }
 
-pub struct Graphs;
+pub struct Graphs {
+    pub n: i64
+}
 
 pub struct Server<'a> {
     addr: &'a str,
-    ctx: context::Context<'a>,
-    graphs: Rc<RefCell<Graphs>>
+    ctx: context::Context,
+    graphs: Arc<RwLock<Graphs>>
 }
 
 impl<'a> Server<'a> {
@@ -51,7 +50,7 @@ impl<'a> Server<'a> {
         Server{
             addr: option_env!("NMD_ADDR").unwrap_or("*:5555"),
             ctx: context::Context::new(),
-            graphs: Rc::new(RefCell::new(Graphs{}))
+            graphs: Arc::new(RwLock::new(Graphs{n: 1}))
         }
     }
 
@@ -159,31 +158,18 @@ impl<'a> Server<'a> {
             renderer_options.insert(option.get_key().to_string(), option.get_value().to_string());
         }
 
-        let renderer: Box<renderers::Renderer + 'a> = Box::new(
-            renderers::webgl::WebGLRenderer::new(
-                self.graphs.clone(),
-                viewer,
-                renderer_options
-            )
-        );
-
-
-        // renderer.init(renderer_options);
-
-        // let renderer: Box<renderers::Renderer> = match request.get_renderer_type() {
-        //     messages::CreateRendererRequest_RendererType::DISPLAY => {
-        //         unimplemented!()
-        //         // Box::new(renderers::display::DisplayRenderer::new(
-        //         //     self.ctx,
-        //         //     renderer_options
-        //         // ))
-        //     },
-        //     messages::CreateRendererRequest_RendererType::WEBGL => {
-        //         Box::new(renderers::webgl::WebGLRenderer{
-        //             graphs: &self.ctx.graphs
-        //         })
-        //     }
-        // };
+        let renderer: Box<renderers::Renderer> = match request.get_renderer_type() {
+            messages::CreateRendererRequest_RendererType::DISPLAY => {
+                unimplemented!()
+            },
+            messages::CreateRendererRequest_RendererType::WEBGL => {
+                Box::new(renderers::webgl::WebGLRenderer::new(
+                    self.graphs.clone(),
+                    viewer,
+                    renderer_options
+                ))
+            }
+        };
 
         // Add the renderer to context.
         let renderer_id = self.ctx.add_renderer(renderer);
@@ -227,8 +213,8 @@ impl<'a> Server<'a> {
             transform: unserialize_matrix4(req_camera.get_transform()),
             projection: unserialize_matrix4(req_camera.get_projection())
         };
+        renderer.add_camera(&camera);
         renderer.viewer().cameras.insert(camera_name.to_string(), camera);
-        // TODO: renderer.add_camera(camera);
         None
     }
 

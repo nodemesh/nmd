@@ -1,14 +1,9 @@
 extern crate nalgebra as na;
 
-// TODO: implement display renderer
-// pub mod display;
 pub mod webgl;
 
 use self::na::*;
 use std::collections::HashMap;
-use std::rc::Rc;
-use context;
-use renderers;
 
 pub struct Camera {
     pub name: String,
