@@ -197,7 +197,7 @@ impl<'a> Server<'a> {
         let renderer = self.ctx.get_renderer_with_id(renderer_id);
         let transform = unserialize_matrix4(request.get_transform());
         renderer.viewer().transform = transform;
-        renderer.set_viewer_transform(transform);
+        renderer.update_viewer_transform(transform);
         None
     }
 
@@ -237,7 +237,7 @@ impl<'a> Server<'a> {
         let camera_name = request.get_camera_name();
         let transform = unserialize_matrix4(request.get_transform());
         renderer.viewer().cameras.get_mut(camera_name).unwrap().transform = transform;
-        renderer.set_camera_transform(
+        renderer.update_camera_transform(
             camera_name,
             transform
         );
@@ -252,7 +252,7 @@ impl<'a> Server<'a> {
         let camera_name = request.get_camera_name();
         let projection = unserialize_matrix4(request.get_transform());
         renderer.viewer().cameras.get_mut(camera_name).unwrap().projection = projection;
-        renderer.set_camera_projection(
+        renderer.update_camera_projection(
             camera_name,
             projection
         );

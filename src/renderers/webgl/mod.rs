@@ -1,3 +1,5 @@
+extern crate serde;
+extern crate serde_json;
 extern crate nalgebra as na;
 extern crate ws;
 
@@ -11,9 +13,59 @@ use std::sync::{Arc, RwLock, RwLockWriteGuard};
 use self::ws::{WebSocket, Sender as WSSender, Handler, Message, Handshake};
 use std::sync::mpsc;
 
-#[derive(Clone)]
-enum WSMessage {
-    INITIAL_PAYLOAD = 0
+enum ServerMessage<'a> {
+    UpdateViewerTransformMessage { transform: Matrix4<f32> },
+    AddCamera { camera: &'a renderers::Camera },
+    DeleteCameraWithName { name: &'a str },
+    UpdateCameraTransform { camera_name: &'a str, transform: Matrix4<f32> },
+    UpdateCameraProjection { camera_name: &'a str, projection: Matrix4<f32> },
+    SetInitialState
+}
+
+impl<'a> serde::Serialize for ServerMessage<'a> {
+    fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error>
+        where S: serde::Serializer,
+    {
+        serializer.serialize_map(ServerMessageMapVisitor { value: self })
+    }
+}
+
+struct ServerMessageMapVisitor<'a> {
+    value: &'a ServerMessage<'a>
+}
+
+impl<'a> serde::ser::MapVisitor for ServerMessageMapVisitor<'a> {
+    fn visit<S: serde::Serializer>(&mut self, serializer: &mut S) -> Result<Option<()>, S::Error> {
+        match *self.value {
+            ServerMessage::UpdateViewerTransformMessage{ transform } => {
+                try!(serializer.serialize_map_elt("code", 0));
+                // TODO: try!(serializer.serialize_map_elt("transform", transform));
+            },
+            ServerMessage::AddCamera{ camera } => {
+                try!(serializer.serialize_map_elt("code", 1));
+                // TODO: try!(serializer.serialize_map_elt("camera", camera));
+            },
+            ServerMessage::DeleteCameraWithName{ name } => {
+                try!(serializer.serialize_map_elt("code", 2));
+                try!(serializer.serialize_map_elt("name", name));
+            },
+            ServerMessage::UpdateCameraTransform{ camera_name, transform } => {
+                try!(serializer.serialize_map_elt("code", 3));
+                try!(serializer.serialize_map_elt("camera_name", camera_name));
+                // TODO: try!(serializer.serialize_map_elt("transform", transform));
+            },
+            ServerMessage::UpdateCameraProjection{ camera_name, projection } => {
+                try!(serializer.serialize_map_elt("code", 4));
+                try!(serializer.serialize_map_elt("camera_name", camera_name));
+                // TODO: try!(serializer.serialize_map_elt("projection", projection));
+            },
+            ServerMessage::SetInitialState => {
+                try!(serializer.serialize_map_elt("code", 5));
+            },
+        };
+
+        Ok(None)
+    }
 }
 
 struct WebsocketServer {
@@ -24,9 +76,10 @@ struct WebsocketServer {
 
 impl WebsocketServer {
     fn payload_message(&self) -> ws::Message {
-        let graphs = self.graphs.as_ref().read().unwrap();
-        let viewer = self.viewer.as_ref().read().unwrap();
-        ws::Message::Text("hello".to_string())
+        // let graphs = self.graphs.as_ref().read().unwrap();
+        // let viewer = self.viewer.as_ref().read().unwrap();
+        let msg = ServerMessage::SetInitialState{};
+        Message::Binary(serde_json::to_vec(&msg).unwrap())
     }
 }
 
@@ -37,12 +90,12 @@ impl Handler for WebsocketServer {
         self.out.send(self.payload_message())
     }
 
-    fn on_message(&mut self, msg: Message) -> ws::Result<()> {
-        let graphs = self.graphs.as_ref().read().unwrap();
-        graphs.n;
-        let data = msg.into_data();
-        self.out.send("response")
-    }
+    // fn on_message(&mut self, msg: Message) -> ws::Result<()> {
+    //     let graphs = self.graphs.as_ref().read().unwrap();
+    //     graphs.n;
+    //     let data = msg.into_data();
+    //     self.out.send("response")
+    // }
 }
 
 pub struct WebGLRenderer {
@@ -53,7 +106,6 @@ pub struct WebGLRenderer {
 }
 
 impl WebGLRenderer {
-
     pub fn new(
         graphs: Arc<RwLock<server::Graphs>>,
         viewer: renderers::Viewer,
@@ -69,9 +121,8 @@ impl WebGLRenderer {
             tx: tx
         };
 
+        // TODO: get addr from options
         let addr = "127.0.0.1:12345";
-
-        let foo = 0;
 
         renderer.join_handle = Some(thread::spawn(move || {
             let ws = WebSocket::new(|out| {
@@ -106,43 +157,36 @@ impl renderers::Renderer for WebGLRenderer {
         self.viewer.as_ref().write().unwrap()
     }
 
-    fn set_viewer_transform(&mut self, transform: Matrix4<f32>) {
-        let msg = ws::Message::Text("hello world".to_string());
-        let _ = self.tx.send(msg);
-        // self.bus.unwrap().broadcast(WSMessage::INITIAL_PAYLOAD)
-        // self.rx.send(Message{
-        //     type: SET_VIEWER_TRANSFORM,
-        //     transform: transform
-        // });
+    fn update_viewer_transform(&mut self, transform: Matrix4<f32>) {
+        let msg = ServerMessage::UpdateViewerTransformMessage {
+            transform: transform
+        };
+        let _ = self.tx.send(Message::Binary(serde_json::to_vec(&msg).unwrap()));
     }
 
     fn add_camera(&mut self, camera: &renderers::Camera) {
-        // self.rx.send(Message{
-        //     type: ADD_CAMERA,
-        //     camera: camera
-        // });
+        let msg = ServerMessage::AddCamera { camera: camera };
+        let _ = self.tx.send(Message::Binary(serde_json::to_vec(&msg).unwrap()));
     }
 
     fn delete_camera_with_name(&mut self, name: &str) {
-        // self.rx.send(Message{
-        //     type: DELETE_CAMERA_WITH_NAME,
-        //     name: name
-        // });
+        let msg = ServerMessage::DeleteCameraWithName { name: name };
+        let _ = self.tx.send(Message::Binary(serde_json::to_vec(&msg).unwrap()));
     }
 
-    fn set_camera_transform(&mut self, camera_name: &str, transform: Matrix4<f32>) {
-        // self.rx.send(Message{
-        //     type: SET_CAMERA_TRANSFORM,
-        //     name: camera_name,
-        //     transform: transform
-        // });
+    fn update_camera_transform(&mut self, camera_name: &str, transform: Matrix4<f32>) {
+        let msg = ServerMessage::UpdateCameraTransform {
+            camera_name: camera_name,
+            transform: transform
+        };
+        let _ = self.tx.send(Message::Binary(serde_json::to_vec(&msg).unwrap()));
     }
 
-    fn set_camera_projection(&mut self, camera_name: &str, projection: Matrix4<f32>) {
-        // self.rx.send(Message{
-        //     type: SET_CAMERA_PROJECTION,
-        //     name: camera_name,
-        //     projection: projection
-        // });
+    fn update_camera_projection(&mut self, camera_name: &str, projection: Matrix4<f32>) {
+        let msg = ServerMessage::UpdateCameraProjection {
+            camera_name: camera_name,
+            projection: projection
+        };
+        let _ = self.tx.send(Message::Binary(serde_json::to_vec(&msg).unwrap()));
     }
 }

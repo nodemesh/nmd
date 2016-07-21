@@ -19,9 +19,13 @@ pub struct Viewer {
 
 pub trait Renderer {
     fn viewer(&mut self) -> RwLockWriteGuard<Viewer>;
-    fn set_viewer_transform(&mut self, transform: Matrix4<f32>);
+    fn update_viewer_transform(&mut self, transform: Matrix4<f32>);
     fn add_camera(&mut self, camera: &Camera);
     fn delete_camera_with_name(&mut self, name: &str);
-    fn set_camera_transform(&mut self, camera_name: &str, transform: Matrix4<f32>);
-    fn set_camera_projection(&mut self, camera_name: &str, projection: Matrix4<f32>);
+    fn update_camera_transform(
+        &mut self, camera_name: &str, transform: Matrix4<f32>
+    );
+    fn update_camera_projection(
+        &mut self, camera_name: &str, projection: Matrix4<f32>
+    );
 }
