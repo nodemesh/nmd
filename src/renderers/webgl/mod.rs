@@ -7,8 +7,8 @@ use server;
 use std::thread;
 use std::thread::{JoinHandle};
 use renderers;
-use std::sync::{Arc, RwLock};
-use self::ws::{WebSocket, Sender as WSSender, Handler, Message};
+use std::sync::{Arc, RwLock, RwLockWriteGuard};
+use self::ws::{WebSocket, Sender as WSSender, Handler, Message, Handshake};
 use std::sync::mpsc;
 
 #[derive(Clone)]
@@ -18,20 +18,24 @@ enum WSMessage {
 
 struct WebsocketServer {
     out: WSSender,
-    graphs: Arc<RwLock<server::Graphs>>
-    // rx: mspc::Receiver<WSMessage>,
+    graphs: Arc<RwLock<server::Graphs>>,
+    viewer: Arc<RwLock<renderers::Viewer>>
+}
+
+impl WebsocketServer {
+    fn payload_message(&self) -> ws::Message {
+        let graphs = self.graphs.as_ref().read().unwrap();
+        let viewer = self.viewer.as_ref().read().unwrap();
+        ws::Message::Text("hello".to_string())
+    }
 }
 
 impl Handler for WebsocketServer {
-    // fn on_open(&mut self, _: Handshake) -> Result<(), Error> {
-    //     thread::spawn(move || {
-    //         loop {
-    //             let message = self.rx.recv().unwrap();
-    //             self.out.send(message);
-    //         }
-    //     })
-    //     self.out.send()
-    // }
+    fn on_open(&mut self, _: Handshake) -> ws::Result<()> {
+        // The the client connects, send a snapshot of the
+        // server state.
+        self.out.send(self.payload_message())
+    }
 
     fn on_message(&mut self, msg: Message) -> ws::Result<()> {
         let graphs = self.graphs.as_ref().read().unwrap();
@@ -42,7 +46,7 @@ impl Handler for WebsocketServer {
 }
 
 pub struct WebGLRenderer {
-    viewer: renderers::Viewer,
+    viewer: Arc<RwLock<renderers::Viewer>>,
     options: HashMap<String, String>,
     join_handle: Option<JoinHandle<()>>,
     tx: mpsc::Sender<Message>
@@ -57,19 +61,24 @@ impl WebGLRenderer {
     ) -> WebGLRenderer {
         let (tx, rx) = mpsc::channel();
 
+        let viewer = Arc::new(RwLock::new(viewer));
         let mut renderer = WebGLRenderer{
-            viewer: viewer,
+            viewer: viewer.clone(),
             options: options,
             join_handle: None,
             tx: tx
         };
 
         let addr = "127.0.0.1:12345";
+
+        let foo = 0;
+
         renderer.join_handle = Some(thread::spawn(move || {
             let ws = WebSocket::new(|out| {
                 WebsocketServer{
                     out: out,
-                    graphs: graphs.clone()
+                    graphs: graphs.clone(),
+                    viewer: viewer.clone()
                 }
             }).unwrap();
             let broadcaster = ws.broadcaster();
@@ -87,16 +96,14 @@ impl WebGLRenderer {
 }
 
 impl Drop for WebGLRenderer {
-
     fn drop(&mut self) {
-        self.join_handle.take().unwrap().join();
+        let _ = self.join_handle.take().unwrap().join();
     }
 }
 
 impl renderers::Renderer for WebGLRenderer {
-
-    fn viewer(&mut self) -> &mut renderers::Viewer {
-        &mut self.viewer
+    fn viewer(&mut self) -> RwLockWriteGuard<renderers::Viewer> {
+        self.viewer.as_ref().write().unwrap()
     }
 
     fn set_viewer_transform(&mut self, transform: Matrix4<f32>) {

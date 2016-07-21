@@ -4,6 +4,7 @@ pub mod webgl;
 
 use self::na::*;
 use std::collections::HashMap;
+use std::sync::{RwLockWriteGuard};
 
 pub struct Camera {
     pub name: String,
@@ -17,7 +18,7 @@ pub struct Viewer {
 }
 
 pub trait Renderer {
-    fn viewer(&mut self) -> &mut Viewer;
+    fn viewer(&mut self) -> RwLockWriteGuard<Viewer>;
     fn set_viewer_transform(&mut self, transform: Matrix4<f32>);
     fn add_camera(&mut self, camera: &Camera);
     fn delete_camera_with_name(&mut self, name: &str);

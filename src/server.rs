@@ -149,7 +149,7 @@ impl<'a> Server<'a> {
             cameras: cameras,
             transform: unserialize_matrix4(
                 request.get_viewer_transform()
-            ),
+            )
         };
 
         // Initialize the renderer with options.
