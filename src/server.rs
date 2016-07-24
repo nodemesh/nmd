@@ -47,11 +47,12 @@ pub struct Server<'a> {
 impl<'a> Server<'a> {
 
     pub fn new() -> Server<'a> {
-        Server{
+        let server = Server{
             addr: option_env!("NMD_ADDR").unwrap_or("*:5555"),
             ctx: context::Context::new(),
             graphs: Arc::new(RwLock::new(Graphs{n: 1}))
-        }
+        };
+        server
     }
 
     pub fn listen(&mut self) {

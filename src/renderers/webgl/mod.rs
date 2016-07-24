@@ -3,6 +3,10 @@ extern crate serde_json;
 extern crate nalgebra as na;
 extern crate ws;
 
+extern crate iron;
+extern crate staticfile;
+extern crate mount;
+
 use std::collections::HashMap;
 use self::na::Matrix4;
 use server;
@@ -10,11 +14,16 @@ use std::thread;
 use std::thread::{JoinHandle};
 use renderers;
 use std::sync::{Arc, RwLock, RwLockWriteGuard};
-use self::ws::{WebSocket, Sender as WSSender, Handler, Message, Handshake};
 use std::sync::mpsc;
+use self::ws::{WebSocket, Sender as WSSender, Handler, Message, Handshake};
+
+use std::path::Path;
+use self::iron::Iron;
+use self::staticfile::Static;
+use self::mount::Mount;
 
 enum ServerMessage<'a> {
-    UpdateViewerTransformMessage { transform: Matrix4<f32> },
+    UpdateViewerTransform { transform: Matrix4<f32> },
     AddCamera { camera: &'a renderers::Camera },
     DeleteCameraWithName { name: &'a str },
     UpdateCameraTransform { camera_name: &'a str, transform: Matrix4<f32> },
@@ -37,7 +46,7 @@ struct ServerMessageMapVisitor<'a> {
 impl<'a> serde::ser::MapVisitor for ServerMessageMapVisitor<'a> {
     fn visit<S: serde::Serializer>(&mut self, serializer: &mut S) -> Result<Option<()>, S::Error> {
         match *self.value {
-            ServerMessage::UpdateViewerTransformMessage{ transform } => {
+            ServerMessage::UpdateViewerTransform{ transform } => {
                 try!(serializer.serialize_map_elt("code", 0));
                 // TODO: try!(serializer.serialize_map_elt("transform", transform));
             },
@@ -79,7 +88,7 @@ impl WebsocketServer {
         // let graphs = self.graphs.as_ref().read().unwrap();
         // let viewer = self.viewer.as_ref().read().unwrap();
         let msg = ServerMessage::SetInitialState{};
-        Message::Binary(serde_json::to_vec(&msg).unwrap())
+        Message::Text(serde_json::to_string(&msg).unwrap())
     }
 }
 
@@ -101,7 +110,8 @@ impl Handler for WebsocketServer {
 pub struct WebGLRenderer {
     viewer: Arc<RwLock<renderers::Viewer>>,
     options: HashMap<String, String>,
-    join_handle: Option<JoinHandle<()>>,
+    ws_join_handle: Option<JoinHandle<()>>,
+    http_join_handle: Option<JoinHandle<()>>,
     tx: mpsc::Sender<Message>
 }
 
@@ -117,14 +127,15 @@ impl WebGLRenderer {
         let mut renderer = WebGLRenderer{
             viewer: viewer.clone(),
             options: options,
-            join_handle: None,
+            ws_join_handle: None,
+            http_join_handle: None,
             tx: tx
         };
 
         // TODO: get addr from options
         let addr = "127.0.0.1:12345";
 
-        renderer.join_handle = Some(thread::spawn(move || {
+        renderer.ws_join_handle = Some(thread::spawn(move || {
             let ws = WebSocket::new(|out| {
                 WebsocketServer{
                     out: out,
@@ -142,13 +153,19 @@ impl WebGLRenderer {
             ws.listen(addr).unwrap();
         }));
 
+        renderer.http_join_handle = Some(thread::spawn(move || {
+            let mut mount = Mount::new();
+            mount.mount("/", Static::new(Path::new("src/renderers/webgl/static")));
+            iron::Iron::new(mount).http("127.0.0.1:12346").unwrap();
+        }));
+
         renderer
     }
 }
 
 impl Drop for WebGLRenderer {
     fn drop(&mut self) {
-        let _ = self.join_handle.take().unwrap().join();
+        let _ = self.ws_join_handle.take().unwrap().join();
     }
 }
 
@@ -158,7 +175,7 @@ impl renderers::Renderer for WebGLRenderer {
     }
 
     fn update_viewer_transform(&mut self, transform: Matrix4<f32>) {
-        let msg = ServerMessage::UpdateViewerTransformMessage {
+        let msg = ServerMessage::UpdateViewerTransform {
             transform: transform
         };
         let _ = self.tx.send(Message::Binary(serde_json::to_vec(&msg).unwrap()));
