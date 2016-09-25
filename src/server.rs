@@ -173,13 +173,13 @@ impl<'a> Server<'a> {
         };
 
         // Add the renderer to context.
-        let renderer_id = self.ctx.add_renderer(renderer);
-        let mut msg = messages::ItemCreatedResponse::new();
-        msg.set_item_id(renderer_id);
+        // let renderer_id = self.ctx.add_renderer(renderer);
+        // let mut msg = messages::ItemCreatedResponse::new();
+        // msg.set_item_id(renderer_id);
 
         let mut res = messages::Response::new();
         res.set_response_type(messages::Response_ResponseType::ITEM_CREATED);
-        res.set_item_created_response(msg);
+        // res.set_item_created_response(msg);
         Some(res)
     }
 
